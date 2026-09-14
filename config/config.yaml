@@ -1,0 +1,50 @@
+project_name: GeoSearch AI
+data_dir: data
+raw_dir: data/raw
+tile_dir: data/tiles
+model_dir: data/models
+index_dir: data/index
+qdrant_path: data/index/qdrant
+database_url: sqlite:///data/index/metadata.db
+tile_size: 256
+tile_stride: 256
+embedding_dimension: 256
+semantic_collection: imagery_semantic
+visual_collection: imagery_visual
+confidence_threshold: 0.62
+cloud_probability_threshold: 0.35
+minimum_valid_fraction: 0.65
+minimum_retrieval_score: 0.25
+offline_mode: true
+default_date_start: ''
+default_date_end: ''
+
+model_paths:
+  clip: data/models/clip
+  blip: data/models/blip
+  qwen3: data/models/qwen3
+  remoteclip: data/models/remoteclip
+  prithvi: data/models/prithvi
+  changeformer: data/models/changeformer
+
+model_registry:
+  clip:
+    repository: openai/clip-vit-base-patch32
+    revision: main
+    license: MIT
+  blip:
+    repository: Salesforce/blip-image-captioning-base
+    revision: main
+    license: BSD-3-Clause
+  qwen3:
+    repository: Qwen/Qwen3-0.6B
+    revision: main
+    license: Apache-2.0
+  remoteclip:
+    repository: chendelong/RemoteCLIP
+    revision: main
+    license: MIT
+  prithvi:
+    repository: ibm-nasa-geospatial/Prithvi-100M
+    revision: main
+    license: Apache-2.0

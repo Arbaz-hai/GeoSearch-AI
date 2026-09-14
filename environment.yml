@@ -1,0 +1,10 @@
+name: sat-change-search
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - gdal>=3.7
+  - rasterio
+  - pip
+  - pip:
+      - -r requirements.txt

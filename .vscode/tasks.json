@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Stage Models",
+      "type": "shell",
+      "command": "python scripts/stage_models.py"
+    },
+    {
+      "label": "Stage Datasets",
+      "type": "shell",
+      "command": "python scripts/stage_datasets.py --local-directory data/raw"
+    },
+    {
+      "label": "Build Index",
+      "type": "shell",
+      "command": "python scripts/build_index.py --input data/raw"
+    },
+    {
+      "label": "Run Offline Check",
+      "type": "shell",
+      "command": "python scripts/run_offline_check.py"
+    }
+  ]
+}
