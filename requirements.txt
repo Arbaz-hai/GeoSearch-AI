@@ -1,5 +1,4 @@
 # GeoSearch AI — Python Dependencies
-# Pin major versions for reproducibility. Remove network-dependent satellite API clients.
 
 # --- Web framework ---
 fastapi>=0.111,<1.0
