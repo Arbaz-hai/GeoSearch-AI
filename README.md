@@ -73,7 +73,7 @@ Built with a strict **Offline-First** architecture, the system guarantees that s
 ![Website Overview](data/imagery/Webiste%20page%201.png)
 
 ### AI Processing Pipeline
-![AI Pipeline](data/imagery/sentinel2/ai%20pipeline%20new.jpeg)
+![AI Pipeline](data/imagery/ai%20page%20pipeline%20page%20latest%20page%20and%20page%20final.jpg)
 
 ---
 
