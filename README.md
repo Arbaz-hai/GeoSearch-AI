@@ -28,11 +28,21 @@ Built with a strict **Offline-First** architecture, the system guarantees that s
 
 ---
 
-## 3. Architecture & Processing Pipelines
+## 3. Application Interface
+
+### Website Overview
+![Website Overview](data/imagery/Webiste%20page%201.png)
+
+### AI Processing Pipeline
+![AI Pipeline](data/imagery/sentinel2/ai%20pipeline%20new.jpeg)
+
+---
+
+## 4. Architecture & Processing Pipelines
 
 GeoSearch AI utilizes a highly modular pipeline-driven architecture. 
 
-### 3.1 System Topology
+### 4.1 System Topology
 
 ```mermaid
 graph TD
@@ -82,7 +92,7 @@ graph TD
     CP --> Storage
 ```
 
-### 3.2 Ingestion & Semantic Tagging
+### 4.2 Ingestion & Semantic Tagging
 During the ingestion of raster data (GeoTIFF, Sentinel, Landsat), the system normalizes the data, applies cloud-masking, and extracts latent features.
 
 ```mermaid
@@ -110,17 +120,14 @@ sequenceDiagram
 
 ---
 
-(data/imagery/sentinel2/sentinel2_scene_1.png)
+## 5. Sample Data & Results
 
-## 4. Sample Data & Results
-
-### 4.1 Processed Imagery Sample
+### 5.1 Processed Imagery Sample
 *Sample Sentinel-2 imagery successfully ingested, normalized, and semantically tagged by the engine:*
 
 ![Sample Sentinel-2 Data](data/imagery/sentinel2/sentinel2_scene_1.png)
 
-### 4.2 Application Interface Screenshots
-*(Note: Save your interface screenshots to the `docs/assets/` directory to view them here)*
+### 5.2 Application Interface Screenshots
 
 **Semantic Search UI:**
 ![Semantic Search Interface](docs/assets/search_ui.png)
@@ -130,7 +137,7 @@ sequenceDiagram
 
 ---
 
-## 5. Local Setup & Installation
+## 6. Local Setup & Installation
 
 ### Prerequisites
 * **Operating System:** Windows, Linux, or macOS
@@ -168,7 +175,7 @@ python run_server.py
 
 ---
 
-## 6. Production Deployment (Hugging Face Spaces)
+## 7. Production Deployment (Hugging Face Spaces)
 
 GeoSearch AI can be deployed to remote infrastructure such as Hugging Face Spaces using the **Docker SDK**.
 
