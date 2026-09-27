@@ -74,12 +74,6 @@ Built with a strict **Offline-First** architecture, the system guarantees that s
 
 
 
-## . Sample Data & Results
-
-###  Processed Imagery Sample
-*Sample Sentinel-2 imagery successfully ingested, normalized, and semantically tagged by the engine:*
-
-![Sample Sentinel-2 Data](data/imagery/sentinel2/sentinel2_scene_1.png)
 
 ###  Application Interface Screenshots
 
