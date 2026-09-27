@@ -110,6 +110,8 @@ sequenceDiagram
 
 ---
 
+(data/imagery/sentinel2/sentinel2_scene_1.png)
+
 ## 4. Sample Data & Results
 
 ### 4.1 Processed Imagery Sample
