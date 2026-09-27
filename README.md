@@ -10,7 +10,7 @@
 
 ---
 
-## 1. Abstract
+##  Abstract
 
 **GeoSearch AI** is a multimodal search and analysis engine designed for intelligence analysts, researchers, and geospatial professionals. It transcends traditional metadata-based querying by enabling **Natural Language Semantic Search** and **Image-to-Image similarity mapping** across large-scale remote sensing archives.
 
@@ -18,7 +18,7 @@ Built with a strict **Offline-First** architecture, the system guarantees that s
 
 ---
 
-## 2. Core Capabilities
+##  Core Capabilities
 
 * **Multimodal Semantic Search:** Query satellite imagery using natural language (e.g., *"Show me industrial facilities near water bodies"*).
 * **Automated Change Detection:** Perform temporal analysis between historical and current scenes to identify infrastructural or environmental deviations.
@@ -28,116 +28,32 @@ Built with a strict **Offline-First** architecture, the system guarantees that s
 
 ---
 
-## 3. Application Interface
+## . Application Interface
 
-### Website Overview
-![Website Overview](data/imagery/Webiste%20page%201.png)
 
 ### AI Processing Pipeline
 ![AI Pipeline](data/imagery/sentinel2/ai%20pipeline%20new.jpeg)
 
 ---
 
-## 4. Architecture & Processing Pipelines
 
-GeoSearch AI utilizes a highly modular pipeline-driven architecture. 
 
-### 4.1 System Topology
+## . Sample Data & Results
 
-```mermaid
-graph TD
-    User([User / Analyst])
-    
-    subgraph Client Interface
-        G[Gradio 5 Interface]
-    end
-    
-    subgraph Core Services
-        API[FastAPI Server]
-        Auth[HMAC Authentication]
-        API --> Auth
-    end
-    
-    subgraph Execution Pipelines
-        IP[Ingestion Pipeline]
-        SP[Search Pipeline]
-        CP[Change Pipeline]
-    end
-    
-    subgraph Foundation Models
-        CLIP[OpenCLIP Encoders]
-        BLIP[BLIP Captioner]
-        Qwen[Qwen3 Query Parser]
-        EO[Prithvi/RemoteCLIP]
-    end
-    
-    subgraph Persistence Layer
-        SQLite[(SQLite Metadata)]
-        Qdrant[(Qdrant Vectors)]
-        Storage[Local Image Store]
-    end
-
-    User <-->|HTTP/REST| G
-    G <--> API
-    API --> IP
-    API --> SP
-    API --> CP
-    
-    IP --> CLIP & BLIP & EO
-    SP --> CLIP & Qwen
-    CP --> EO
-    
-    IP --> SQLite & Qdrant & Storage
-    SP --> SQLite & Qdrant
-    CP --> Storage
-```
-
-### 4.2 Ingestion & Semantic Tagging
-During the ingestion of raster data (GeoTIFF, Sentinel, Landsat), the system normalizes the data, applies cloud-masking, and extracts latent features.
-
-```mermaid
-sequenceDiagram
-    participant U as Client
-    participant IP as Ingestion Engine
-    participant CV as Raster Processor
-    participant BLIP as NLP Captioner
-    participant CLIP as Vision Embedder
-    participant DB as SQLite / Qdrant
-
-    U->>IP: Upload Archive (ZIP/TIF)
-    IP->>CV: Parse Telemetry & CRS
-    CV->>CV: Apply Quality Mask & Normalization
-    
-    IP->>BLIP: Generate Semantic Tags
-    BLIP-->>IP: Extracted Labels
-    
-    IP->>CLIP: Generate Visual Embeddings
-    CLIP-->>IP: 512D Vector Representation
-    
-    IP->>DB: Upsert Metadata (SQLite) & Vectors (Qdrant)
-    IP-->>U: Ingestion Complete
-```
-
----
-
-## 5. Sample Data & Results
-
-### 5.1 Processed Imagery Sample
+###  Processed Imagery Sample
 *Sample Sentinel-2 imagery successfully ingested, normalized, and semantically tagged by the engine:*
 
 ![Sample Sentinel-2 Data](data/imagery/sentinel2/sentinel2_scene_1.png)
 
-### 5.2 Application Interface Screenshots
+###  Application Interface Screenshots
 
-**Semantic Search UI:**
-![Semantic Search Interface](docs/assets/search_ui.png)
+**Website UI:**
+![Website Overview](data/imagery/Webiste%20page%201.png)
 
-**Temporal Change Detection:**
-![Change Detection Analysis](docs/assets/change_detection.png)
 
 ---
 
-## 6. Local Setup & Installation
+##  Local Setup & Installation
 
 ### Prerequisites
 * **Operating System:** Windows, Linux, or macOS
@@ -175,7 +91,7 @@ python run_server.py
 
 ---
 
-## 7. Production Deployment (Hugging Face Spaces)
+##  Production Deployment (Hugging Face Spaces)
 
 GeoSearch AI can be deployed to remote infrastructure such as Hugging Face Spaces using the **Docker SDK**.
 
