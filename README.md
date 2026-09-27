@@ -79,104 +79,145 @@ Built with a strict **Offline-First** architecture, the system guarantees that s
 
 ## 4. Architecture & Processing Pipelines
 
-GeoSearch AI utilizes a highly modular pipeline-driven architecture.
+GeoSearch AI is built around four intelligence modules that operate on Earth Observation inputs (Sentinel-2/HLS optical, Sentinel-1 SAR GRD, and multi-date temporal archives) and deliver structured analyst outputs.
 
-### 4.1 System Topology
+---
 
-```mermaid
-graph TD
-    User([User / Analyst])
+### 4.1 Module 1 — Semantic Intelligence *(Optical + Text)*
 
-    subgraph Client Interface
-        G[React + Vite Frontend]
-        L[React Leaflet Map]
-    end
-
-    subgraph Core Services
-        API[FastAPI + Uvicorn]
-        Auth[HMAC Authentication]
-        API --> Auth
-    end
-
-    subgraph Execution Pipelines
-        IP[Ingestion Pipeline]
-        SP[Search Pipeline]
-        CP[Change Detection Pipeline]
-    end
-
-    subgraph Foundation Models
-        RCLIP[RemoteCLIP]
-        PRITHVI[Prithvi-EO-2.0]
-        SKYSENSE[SkySense++]
-        CF[ChangeFormer]
-    end
-
-    subgraph Search & Geo
-        FAISS[(FAISS Index)]
-        HDBSCAN[HDBSCAN Clustering]
-        GDAL[GDAL/OGR + Rasterio]
-    end
-
-    subgraph Persistence Layer
-        SQLite[(SQLite Metadata)]
-        Storage[Local Image Store]
-    end
-
-    User <-->|HTTP/REST| G
-    G <--> L
-    G <--> API
-    API --> IP
-    API --> SP
-    API --> CP
-
-    IP --> RCLIP & PRITHVI & GDAL
-    SP --> RCLIP & FAISS & HDBSCAN
-    CP --> CF & SKYSENSE
-
-    IP --> SQLite & Storage
-    SP --> SQLite & FAISS
-    CP --> Storage
-```
-
-### 4.2 Ingestion & Semantic Tagging
-
-During the ingestion of raster data (GeoTIFF, Sentinel-1/2, HLS), the system normalizes the data, applies cloud-masking via GDAL/OGR, and extracts latent features.
+Natural language queries and optical tiles are independently encoded by **RemoteCLIP ViT-L/14** into a shared 512-D embedding space. A **FAISS Semantic Index** performs hybrid retrieval combining Cosine Similarity, spectral relevance, and metadata filters to return ranked image candidates.
 
 ```mermaid
-sequenceDiagram
-    participant U as Client
-    participant IP as Ingestion Engine
-    participant CV as Raster Processor (GDAL)
-    participant RCLIP as RemoteCLIP Embedder
-    participant PRITHVI as Prithvi-EO-2.0
-    participant DB as SQLite / FAISS
+flowchart LR
+    NLQ["Natural Language Query\n(e.g. 'new structures near river')"]
+    OPT["Optical Tiles\n(Sentinel-2 / HLS / GeoTIFF-COG)"]
+    PRE["Preprocessing\nRGB / False Color"]
+    TXT_ENC["RemoteCLIP\nText Encoder"]
+    VIS_ENC["RemoteCLIP\nViT-L/14\nVisual Encoder"]
+    TVEC["512-D Text Embedding"]
+    VVEC["512-D Visual Embedding"]
+    FAISS[("FAISS\nSemantic Index")]
+    HYBRID["Hybrid Retrieval\nCosine Similarity +\nSpectral Relevance +\nMetadata"]
+    OUT["Ranked Candidates"]
 
-    U->>IP: Upload Archive (ZIP/TIF/Sentinel)
-    IP->>CV: Parse Telemetry & CRS
-    CV->>CV: Apply Cloud Mask & Normalize Bands
-
-    IP->>PRITHVI: Extract Geospatial Features
-    PRITHVI-->>IP: Dense Feature Map
-
-    IP->>RCLIP: Generate Visual Embeddings
-    RCLIP-->>IP: 512D Vector Representation
-
-    IP->>DB: Upsert Metadata (SQLite) & Vectors (FAISS)
-    IP-->>U: Ingestion Complete
+    NLQ --> TXT_ENC --> TVEC --> FAISS
+    OPT --> PRE --> VIS_ENC --> VVEC --> FAISS
+    FAISS --> HYBRID --> OUT
 ```
 
 ---
 
-## 5. Sample Data
+### 4.2 Module 2 — Temporal Intelligence *(Multi-Temporal Analysis)*
 
-### Processed Sentinel-2 Imagery
-*Sample scene successfully ingested, normalized, and semantically tagged:*
+Multi-temporal image sequences are co-registered via **ECC + Histogram Matching**, then encoded by **Prithvi-EO-2.0** (3D ViT Spatiotemporal Encoder) into temporal embedding sequences. Two parallel heads then operate:
 
-![Sample Sentinel-2 Data](data/imagery/sentinel2/sentinel2_scene_1.png)
+- **ChangeFormer** (Siamese Transformer) → pixel-level change mask
+- **Binary Search O(log N)** → earliest change detection with temporal onset
+
+```mermaid
+flowchart LR
+    SEQ["Multi-Temporal\nImage Sequence"]
+    HIST["Histogram\nMatching"]
+    ECC["ECC\nCo-Registration"]
+    PRITHVI["Prithvi-EO-2.0\n3D ViT /\nSpatiotemporal Encoder"]
+    TEMB["Temporal Embedding\nSequence"]
+    CF["ChangeFormer\nSiamese Transformer"]
+    BS["Binary Search\nO(log N)"]
+    MASK["Pixel-Level\nChange Mask"]
+    EC["Earliest\nChange"]
+
+    SEQ --> HIST --> ECC --> PRITHVI --> TEMB
+    TEMB --> CF --> MASK
+    TEMB --> BS --> EC
+```
 
 ---
 
-## 6. Local Setup & Installation
+### 4.3 Module 3 — Multi-Sensor Fusion *(SAR + Optical)*
+
+Sentinel-1 SAR data undergoes radiometric calibration and Lee Speckle filtering. It is then fused with co-registered Sentinel-2 optical data via **SkySense++** (SAR-Optical Cross-Attention), producing a fused 512-D embedding stored in a dedicated **SAR-Optical FAISS Index**.
+
+```mermaid
+flowchart LR
+    SAR["Sentinel-1 SAR\n(GRD)"]
+    OPT2["Sentinel-2\nOptical"]
+    RCAL["Radiometric\nCalibration"]
+    LEE["Lee Speckle\nFilter"]
+    COREG["Co-Registration"]
+    SKYSENSE["SkySense++\nSAR-Optical\nCross-Attention"]
+    FUSED["Fused 512-D\nEmbedding"]
+    SARFAISS[("SAR-Optical\nFAISS Index")]
+
+    SAR --> RCAL --> LEE --> SKYSENSE
+    OPT2 --> COREG --> SKYSENSE
+    SKYSENSE --> FUSED --> SARFAISS
+```
+
+---
+
+### 4.4 Module 4 — False-Alarm / Evidence Layer
+
+Before a change is confirmed, a **Multi-Evidence Gate** validates it against multiple physical signals to suppress false alarms:
+
+| Evidence Signal | Purpose |
+|---|---|
+| Change Mask | Primary ChangeFormer output |
+| NDVI / NDWI / NDBI / EVI Deltas | Vegetation, water, built-up, vegetation index changes |
+| SCL Cloud Mask | Suppress cloud-induced artifacts |
+| Shadow / DSM | Terrain and shadow interference filtering |
+| Radiometric Normalization | Cross-date illumination correction |
+
+Only detections passing all gates are emitted as **Confidence-Gated Changes**.
+
+```mermaid
+flowchart TD
+    CMASK["Change Mask"]
+    NDVI["NDVI / NDWI /\nNDBI / EVI Deltas"]
+    SCL["SCL Cloud Mask"]
+    SHADOW["Shadow / DSM"]
+    RADNORM["Radiometric\nNormalization"]
+    GATE["Multi-Evidence Gate\nAI Evidence + Physical Evidence"]
+    OUT2["Confidence-Gated Change ✅"]
+
+    CMASK --> GATE
+    NDVI --> GATE
+    SCL --> GATE
+    SHADOW --> GATE
+    RADNORM --> GATE
+    GATE --> OUT2
+```
+
+---
+
+### 4.5 Intelligence Core & Active Learning
+
+All three FAISS indexes (Visual, Temporal, SAR-Optical) are managed by the **GeoSearch AI Intelligence Core**. Analyst feedback (Confirm / Reject / Re-label) flows into an **Active Learning** loop that adjusts FAISS confidence modifiers — with no foundation-model retraining required.
+
+```mermaid
+flowchart LR
+    CORE["GeoSearch AI\nIntelligence Core"]
+    SEM["SEMANTIC\nRemoteCLIP"]
+    TEMP["TEMPORAL\nPrithvi-EO-2.0"]
+    SENS["SENSOR FUSION\nSkySense++"]
+    VI[("Visual\nIndex")]
+    TI[("Temporal\nIndex")]
+    SI[("SAR-Optical\nIndex")]
+    ANALYST["Analyst Review\nConfirm / Reject / Re-label"]
+    AL["Active Learning\nFAISS confidence modifiers"]
+    GEO["GeoJSON Export\nSource Scene + Model Hash +\nAudit Trail + Timestamp"]
+
+    CORE --> SEM & TEMP & SENS
+    SEM --> VI
+    TEMP --> TI
+    SENS --> SI
+    VI & TI & SI --> ANALYST
+    ANALYST --> AL --> CORE
+    ANALYST --> GEO
+```
+
+---
+
+## 5. Local Setup & Installation
 
 ### Prerequisites
 * **OS:** Windows, Linux, or macOS
@@ -224,7 +265,7 @@ python run_server.py
 
 ---
 
-## 7. Production Deployment (Hugging Face Spaces)
+## 6. Production Deployment (Hugging Face Spaces)
 
 GeoSearch AI can be deployed to Hugging Face Spaces using the **Docker SDK**.
 
