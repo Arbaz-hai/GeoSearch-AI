@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services import create_services
 from app.settings import load_settings
-from scripts.generate_eval_report import generate
+from scripts.generate_eval_report import generate_comprehensive_report
 
 
 def main() -> None:
@@ -27,9 +27,9 @@ def main() -> None:
     change_started = time.perf_counter()
     services.change.analyze(settings.default_date_start, settings.default_date_end)
     change_latency = (time.perf_counter() - change_started) * 1000
-    report = generate(build_seconds, search_latency, change_latency)
+    report = generate_comprehensive_report()
     print(f"Processed {len(results)} scene(s) in {build_seconds:.3f}s")
-    print(report)
+    print(f"Report generated: {report}")
 
 
 if __name__ == "__main__":

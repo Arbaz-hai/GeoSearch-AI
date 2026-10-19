@@ -88,6 +88,8 @@ if settings.offline_mode:
 
 services: ApplicationServices = create_services(settings)
 
+from fastapi.staticfiles import StaticFiles
+
 app = FastAPI(
     title="GeoSearch AI",
     description="AI-powered satellite imagery semantic search and change detection platform.",
@@ -95,6 +97,21 @@ app = FastAPI(
     docs_url="/api/docs",
     redoc_url="/api/redoc",
 )
+
+# Mount local data directory for direct preview serving
+if settings.data_dir.exists():
+    app.mount("/data", StaticFiles(directory=str(settings.data_dir)), name="data")
+
+
+def _to_web_path(local_path: str | None) -> str | None:
+    if not local_path:
+        return None
+    # Normalize Windows backslashes
+    norm = str(local_path).replace("\\", "/")
+    # If path contains /data/, return from /data/
+    if "/data/" in norm:
+        return "/data/" + norm.split("/data/", 1)[1]
+    return local_path
 
 
 
@@ -144,12 +161,26 @@ def _model_status() -> dict[str, Any]:
 
 @app.post("/api/search/text")
 def search_text(request: TextSearchRequest) -> list[dict[str, Any]]:
-    return services.search.search_text(request.query, request.limit, _filters(request))
+    f = _filters(request)
+    res = services.search.search_text(request.query, request.limit, f)
+    for r in res:
+        if r.get("preview_path"):
+            r["preview_path"] = _to_web_path(r["preview_path"])
+        if r.get("tile_preview_path"):
+            r["tile_preview_path"] = _to_web_path(r["tile_preview_path"])
+    return res
 
 
 @app.post("/api/search/text/detailed")
 def search_text_detailed(request: TextSearchRequest) -> dict[str, Any]:
-    return services.search.search_text_with_status(request.query, request.limit, _filters(request))
+    f = _filters(request)
+    outcome = services.search.search_text_with_status(request.query, request.limit, f)
+    for r in outcome.get("results", []):
+        if r.get("preview_path"):
+            r["preview_path"] = _to_web_path(r["preview_path"])
+        if r.get("tile_preview_path"):
+            r["tile_preview_path"] = _to_web_path(r["tile_preview_path"])
+    return outcome
 
 
 @app.post("/api/search/image")
@@ -181,7 +212,7 @@ def library(limit: int = 500) -> list[dict[str, Any]]:
             "acquisition_date": scene["acquisition_date"],
             "crs": scene["crs"],
             "bounds": scene["bounds"],
-            "preview_path": preview,
+            "preview_path": _to_web_path(preview),
             "tile_count": len(tiles),
             "description": scene["metadata"].get("description", ""),
             "caption": scene["metadata"].get("caption", ""),
@@ -208,7 +239,15 @@ def analyze_change(request: ChangeRequest) -> list[dict[str, Any]]:
 
 @app.get("/api/review-queue")
 def review_queue() -> list[dict[str, Any]]:
-    return services.change.review_queue()
+    queue = services.change.review_queue()
+    for item in queue:
+        if item.get("before_preview"):
+            item["before_preview"] = _to_web_path(item["before_preview"])
+        if item.get("after_preview"):
+            item["after_preview"] = _to_web_path(item["after_preview"])
+        if item.get("mask_preview"):
+            item["mask_preview"] = _to_web_path(item["mask_preview"])
+    return queue
 
 
 @app.post("/api/review/{event_id}/decision")
@@ -288,5 +327,5 @@ import gradio as gr
 
 ui_theme, ui_css, ui_js = get_ui_options()
 demo = create_gradio_app(services, theme=ui_theme, css=ui_css, js=ui_js)
-app = gr.mount_gradio_app(app, demo, path="/")
+app = gr.mount_gradio_app(app, demo, path="/gradio")
 

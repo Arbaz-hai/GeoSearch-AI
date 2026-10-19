@@ -12,6 +12,9 @@ from app.index.metadata_store import MetadataStore
 from app.index.qdrant_store import QdrantStore
 from app.ingestion.coregister import coregister
 from app.ingestion.quality_mask import quality_mask, valid_fraction
+from app.ingestion.radiometric import histogram_match
+from app.ingestion.shadow_mask import compute_shadow_mask, shadow_fraction
+from app.ingestion.spectral_indices import SpectralIndices, compute_spectral_indices
 from app.settings import Settings
 from app.utils.provenance import build_provenance, processing_step
 
@@ -32,6 +35,26 @@ class ChangePipeline:
             bounds[0] <= aoi[2] and bounds[2] >= aoi[0] and
             bounds[1] <= aoi[3] and bounds[3] >= aoi[1]
         )
+
+    def _classify_change_type(
+        self,
+        before: SpectralIndices,
+        after: SpectralIndices,
+        fallback: str,
+    ) -> str:
+        ndvi_delta = round(after.ndvi_mean - before.ndvi_mean, 4)
+        ndwi_delta = round(after.ndwi_mean - before.ndwi_mean, 4)
+        ndbi_delta = round(after.ndbi_mean - before.ndbi_mean, 4)
+
+        if ndbi_delta > 0.12 and ndvi_delta < -0.08:
+            return "construction"
+        if ndvi_delta < -0.20 and ndbi_delta < 0.05:
+            return "clearance"
+        if abs(ndwi_delta) > 0.15:
+            return "water-extent"
+        if ndvi_delta > 0.15:
+            return "vegetation-expansion"
+        return fallback
 
     def analyze_new_scene(self, scene_id: str) -> list[dict[str, Any]]:
         scene = self.metadata.get_scene(scene_id)
@@ -84,6 +107,12 @@ class ChangePipeline:
         before = np.load(before_path)
         after = np.load(after_path)
 
+        # Harmonize spatial dimensions if slight resolution/cropping discrepancies exist
+        min_h = min(before.shape[1], after.shape[1])
+        min_w = min(before.shape[2], after.shape[2])
+        before = before[:, :min_h, :min_w]
+        after = after[:, :min_h, :min_w]
+
         before_scene = self.metadata.get_scene(before_tile["scene_id"])
         after_scene = self.metadata.get_scene(after_tile["scene_id"])
         if before_scene is None or after_scene is None:
@@ -97,7 +126,11 @@ class ChangePipeline:
             return None
 
         registration = coregister(before, after)
-        prediction = self.model.predict(before, registration.aligned, valid)
+        aligned_after = registration.aligned
+        if registration.quality >= 0.10:
+            aligned_after = histogram_match(registration.aligned, before)
+
+        prediction = self.model.predict(before, aligned_after, valid)
 
         before_point = self.vectors.get(self.settings.visual_collection, before_tile["visual_point_id"])
         after_point = self.vectors.get(self.settings.visual_collection, after_tile["visual_point_id"])
@@ -108,10 +141,27 @@ class ChangePipeline:
             denom = max(float(np.linalg.norm(left) * np.linalg.norm(right)), 1e-6)
             embedding_distance = float(np.clip((1 - np.dot(left, right) / denom) / 2, 0, 1))
 
-        confidence = float(np.clip(0.72 * prediction.confidence + 0.28 * embedding_distance, 0, 1))
-        if confidence < self.settings.confidence_threshold:
+        # Spectral Indices & Multi-Evidence Gate
+        before_indices = compute_spectral_indices(before)
+        after_indices = compute_spectral_indices(aligned_after)
+        semantic_type = self._classify_change_type(before_indices, after_indices, prediction.change_type)
+
+        # Shadow suppression gate
+        after_shadow = compute_shadow_mask(after)
+        shadow_frac = shadow_fraction(after_shadow)
+
+        base_conf = float(np.clip(
+            0.75 * prediction.confidence + 0.25 * (embedding_distance if embedding_distance > 0 else prediction.confidence),
+            0,
+            1
+        ))
+        if shadow_frac > 0.40:
+            base_conf *= 0.85  # moderate downgrade
+
+        if base_conf < 0.40:
             return None
 
+        confidence = base_conf
         earliest_date = self._earliest_supported_date(history, before_tile, after_tile)
 
         key = f"{before_tile['id']}_{after_tile['id']}"
@@ -132,6 +182,11 @@ class ChangePipeline:
                     "shift_x": registration.shift_x,
                     "quality": registration.quality,
                 }),
+                processing_step("spectral_verification", details={
+                    "before_ndvi": before_indices.ndvi_mean,
+                    "after_ndvi": after_indices.ndvi_mean,
+                    "shadow_fraction": round(shadow_frac, 3),
+                }),
                 processing_step("change_detection", details={
                     "pixel_confidence": prediction.confidence,
                     "embedding_distance": embedding_distance,
@@ -144,7 +199,7 @@ class ChangePipeline:
         record = {
             "before_tile_id": before_tile["id"],
             "after_tile_id": after_tile["id"],
-            "change_type": prediction.change_type,
+            "change_type": semantic_type,
             "confidence": confidence,
             "earliest_detected_date": earliest_date,
             "mask_path": str(mask_path),
@@ -184,16 +239,22 @@ class ChangePipeline:
             candidate_scene = self.metadata.get_scene(candidate["scene_id"])
             if candidate_scene is None or baseline_scene is None:
                 continue
+
+            mh = min(baseline_array.shape[1], candidate_array.shape[1])
+            mw = min(baseline_array.shape[2], candidate_array.shape[2])
+            b_arr = baseline_array[:, :mh, :mw]
+            c_arr = candidate_array[:, :mh, :mw]
+
             valid = (
-                quality_mask(baseline_array, baseline_scene["sensor"], self.settings.cloud_probability_threshold)
-                & quality_mask(candidate_array, candidate_scene["sensor"], self.settings.cloud_probability_threshold)
+                quality_mask(b_arr, baseline_scene["sensor"], self.settings.cloud_probability_threshold)
+                & quality_mask(c_arr, candidate_scene["sensor"], self.settings.cloud_probability_threshold)
             )
-            if valid_fraction(valid) < self.settings.minimum_valid_fraction:
+            if valid_fraction(valid) < 0.20:
                 continue
             pred = self.model.predict(
-                baseline_array, coregister(baseline_array, candidate_array).aligned, valid
+                b_arr, coregister(b_arr, c_arr).aligned, valid
             )
-            if pred.confidence >= self.settings.confidence_threshold:
+            if pred.confidence >= 0.40:
                 earliest = candidate_scene["acquisition_date"]
                 break
         return earliest

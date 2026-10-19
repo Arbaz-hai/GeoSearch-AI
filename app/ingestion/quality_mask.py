@@ -51,7 +51,7 @@ def s2cloudless_probability(image: np.ndarray, threshold: float) -> np.ndarray:
         return estimate_cloud_probability(values)
 
 
-def quality_mask(image: np.ndarray, sensor: str, cloud_threshold: float = 0.35, scl: np.ndarray | None = None, fmask: np.ndarray | None = None) -> np.ndarray:
+def quality_mask(image: np.ndarray, sensor: str, cloud_threshold: float = 0.65, scl: np.ndarray | None = None, fmask: np.ndarray | None = None) -> np.ndarray:
     values = np.asarray(image, dtype=np.float32)
     valid = np.all(np.isfinite(values), axis=0) if values.ndim == 3 else np.isfinite(values)
     sensor_token = sensor.lower()
@@ -59,8 +59,20 @@ def quality_mask(image: np.ndarray, sensor: str, cloud_threshold: float = 0.35, 
         valid &= sentinel_scl_mask(scl)
     if "landsat" in sensor_token and fmask is not None:
         valid &= fmask == 0
-    probability = s2cloudless_probability(values, cloud_threshold) if "sentinel-2" in sensor_token else estimate_cloud_probability(values)
-    valid &= probability <= cloud_threshold
+    
+    # Only apply heuristic probability filter if 10+ bands or extreme values exist
+    if values.shape[0] >= 10:
+        probability = s2cloudless_probability(values, cloud_threshold)
+        valid &= probability <= cloud_threshold
+    else:
+        # Standard RGB / 3-4 band image: mask only true saturated blown-out white regions
+        brightness = np.nanmean(values[:3], axis=0) if values.ndim == 3 else values
+        # If image is scaled 0-255 or 0-1
+        is_255 = float(np.nanmax(values)) > 2.0
+        sat_val = 250.0 if is_255 else 0.98
+        is_cloud = (brightness >= sat_val) & (np.nanstd(values[:3], axis=0) < (5.0 if is_255 else 0.05))
+        valid &= ~is_cloud
+
     return valid
 
 

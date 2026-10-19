@@ -72,8 +72,10 @@ class SearchPipeline:
             max(limit * 6, 120),
             filters,
         )
+        print(f"[SEARCH_DEBUG] query='{query}' raw_matches={len(raw_matches)} filters={filters}", flush=True)
 
         lexical = self._lexical_candidates(query, filters)
+        print(f"[SEARCH_DEBUG] lexical={len(lexical)}", flush=True)
 
         candidates: dict[str, dict[str, Any]] = {}
         for match in raw_matches:
@@ -93,7 +95,9 @@ class SearchPipeline:
                 candidates[tile["id"]] = {"id": tile["semantic_point_id"], "score": 0.65 + 0.15 * lex_score, "payload": payload}
 
         sorted_matches = sorted(candidates.values(), key=lambda m: m["score"], reverse=True)
+        print(f"[SEARCH_DEBUG] candidates={len(candidates)} calling _format_results_scene_level", flush=True)
         results = self._format_results_scene_level(sorted_matches, "text", embedding.backend, query)[:limit]
+        print(f"[SEARCH_DEBUG] formatted results={len(results)}", flush=True)
 
         if results:
             status = f"Found **{len(results)}** result(s)."
@@ -205,9 +209,11 @@ class SearchPipeline:
 
             tile = self.metadata.get_tile(tile_id)
             if tile is None:
+                print(f"[FORMAT_DEBUG] get_tile({tile_id}) is None!", flush=True)
                 continue
             scene = self.metadata.get_scene(tile["scene_id"])
             if scene is None:
+                print(f"[FORMAT_DEBUG] get_scene({tile['scene_id']}) is None!", flush=True)
                 continue
 
             similarity = float(match["score"])

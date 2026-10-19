@@ -8,10 +8,10 @@ qdrant_path: data/index/qdrant
 database_url: sqlite:///data/index/metadata.db
 tile_size: 256
 tile_stride: 256
-embedding_dimension: 256
+embedding_dimension: 512
 semantic_collection: imagery_semantic
 visual_collection: imagery_visual
-confidence_threshold: 0.62
+confidence_threshold: 0.68
 cloud_probability_threshold: 0.35
 minimum_valid_fraction: 0.65
 minimum_retrieval_score: 0.25
@@ -25,6 +25,7 @@ model_paths:
   qwen3: data/models/qwen3
   remoteclip: data/models/remoteclip
   prithvi: data/models/prithvi
+  skysense: data/models/skysense
   changeformer: data/models/changeformer
 
 model_registry:
@@ -44,7 +45,19 @@ model_registry:
     repository: chendelong/RemoteCLIP
     revision: main
     license: MIT
+    notes: RemoteCLIP ViT-L/14 domain-specific remote sensing encoder.
   prithvi:
     repository: ibm-nasa-geospatial/Prithvi-100M
     revision: main
     license: Apache-2.0
+    notes: NASA/IBM spatiotemporal foundation model with 3D patch embeddings.
+  skysense:
+    repository: AI4EO/SkySense
+    revision: main
+    license: Apache-2.0
+    notes: SkySense++ SAR-Optical cross-attention fusion model.
+  changeformer:
+    repository: wgcban/ChangeFormer
+    revision: main
+    license: MIT
+    notes: ChangeFormer Siamese transformer for bi-temporal remote sensing change detection.

@@ -4,8 +4,11 @@ import logging
 from dataclasses import dataclass
 
 from app.conversation.query_parser import QueryParser
+from app.embeddings.prithvi_encoder import PrithviEncoder
+from app.embeddings.skysense_encoder import SkySenseEncoder
 from app.embeddings.text_image_encoder import TextImageEncoder
 from app.embeddings.visual_encoder import VisualEncoder
+from app.index.faiss_store import FaissStore
 from app.index.metadata_store import MetadataStore
 from app.index.qdrant_store import QdrantStore
 from app.pipelines.change_pipeline import ChangePipeline
@@ -24,8 +27,11 @@ class ApplicationServices:
     settings: Settings
     metadata: MetadataStore
     vectors: QdrantStore
+    faiss: FaissStore
     text_encoder: TextImageEncoder
     visual_encoder: VisualEncoder
+    prithvi: PrithviEncoder
+    skysense: SkySenseEncoder
     query_parser: QueryParser
     ingest: IngestPipeline
     search: SearchPipeline
@@ -45,6 +51,10 @@ def create_services(settings: Settings) -> ApplicationServices:
         settings.visual_collection,
         settings.embedding_dimension,
     )
+    faiss = FaissStore(
+        settings.index_dir / "faiss",
+        dimension=settings.embedding_dimension,
+    )
 
     clip_path = settings.model_path("clip")
     remoteclip_path = settings.model_path("remoteclip")
@@ -59,6 +69,16 @@ def create_services(settings: Settings) -> ApplicationServices:
     )
     logger.info("Visual encoder backend: %s", visual_encoder.backend)
 
+    prithvi = PrithviEncoder(
+        settings.model_path("prithvi"), settings.embedding_dimension, settings.offline_mode
+    )
+    logger.info("Prithvi temporal encoder backend: %s", prithvi.backend)
+
+    skysense = SkySenseEncoder(
+        settings.model_path("skysense"), settings.embedding_dimension, settings.offline_mode
+    )
+    logger.info("SkySense++ SAR-Optical fusion encoder backend: %s", skysense.backend)
+
     query_parser = QueryParser(settings.model_path("qwen3"), settings.offline_mode)
     logger.info("Query parser backend: %s", query_parser.backend)
 
@@ -68,8 +88,11 @@ def create_services(settings: Settings) -> ApplicationServices:
         settings=settings,
         metadata=metadata,
         vectors=vectors,
+        faiss=faiss,
         text_encoder=text_encoder,
         visual_encoder=visual_encoder,
+        prithvi=prithvi,
+        skysense=skysense,
         query_parser=query_parser,
         ingest=IngestPipeline(settings, metadata, vectors, text_encoder, visual_encoder),
         search=search,
@@ -85,7 +108,7 @@ def create_services(settings: Settings) -> ApplicationServices:
 
 def _log_model_status(settings: Settings) -> None:
     """Log which models are staged and which are missing."""
-    model_names = ["clip", "blip", "qwen3", "remoteclip", "prithvi"]
+    model_names = ["clip", "blip", "qwen3", "remoteclip", "prithvi", "skysense", "changeformer"]
     staged = []
     missing = []
     for name in model_names:
