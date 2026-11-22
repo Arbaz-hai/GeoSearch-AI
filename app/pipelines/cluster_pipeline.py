@@ -10,11 +10,7 @@ from app.settings import Settings
 
 
 class ClusterPipeline:
-    """
-    Unsupervised clustering over the CLIP embedding space using HDBSCAN, DBSCAN, or KMeans.
-    Enables archive-wide semantic exploration and "Find me more like this".
-    """
-
+    
     def __init__(
         self,
         settings: Settings,
